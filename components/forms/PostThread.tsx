@@ -29,7 +29,7 @@ const PostThread = ({ userId }: Props) => {
   const router = useRouter();
   const pathname = usePathname();
 
-  // const { organization } = useOrganization();
+  const { organization } = useOrganization();
 
   const form = useForm<z.infer<typeof ThreadValidation>>({
     // ? membuat validation pada form
@@ -49,9 +49,10 @@ const PostThread = ({ userId }: Props) => {
       await createThread({
         text: values.thread,
         author: userId,
-        communityId: null,
+        communityId: organization ? organization.id : null,
         path: pathname,
       });
+
       // ? arahkan ke halaman utama
       router.push("/");
     } catch (error: any) {

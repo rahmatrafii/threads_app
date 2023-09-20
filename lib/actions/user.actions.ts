@@ -1,10 +1,26 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
-import User from "../modles/user.models";
-import Thread from "../modles/thread.models";
-import { connectToDB } from "../mongoose";
 import { FilterQuery, SortOrder } from "mongoose";
+import { revalidatePath } from "next/cache";
+
+import Community from "../modles/community.models";
+import Thread from "../modles/thread.models";
+import User from "../modles/user.models";
+
+import { connectToDB } from "../mongoose";
+
+export async function fetchUser(userId: string) {
+  try {
+    connectToDB();
+
+    return await User.findOne({ id: userId }).populate({
+      path: "communities",
+      model: Community,
+    });
+  } catch (error: any) {
+    throw new Error(`Failed to fetch user: ${error.message}`);
+  }
+}
 
 interface Params {
   userId: string;
@@ -15,7 +31,6 @@ interface Params {
   path: string;
 }
 
-// ? function updateUser menerima userId, bio,  name, path, username,image,
 export async function updateUser({
   userId,
   bio,
@@ -25,14 +40,10 @@ export async function updateUser({
   image,
 }: Params): Promise<void> {
   try {
-    // ? mengkonect kan ke database
     connectToDB();
 
-    // ? mengupdate user
     await User.findOneAndUpdate(
-      // ? id user
       { id: userId },
-      // ? datanya
       {
         username: username.toLowerCase(),
         name,
@@ -40,7 +51,6 @@ export async function updateUser({
         image,
         onboarded: true,
       },
-      //   ? memperbarui data jika sudah ada memasukkan data jika belumm ada
       { upsert: true }
     );
 
@@ -52,46 +62,39 @@ export async function updateUser({
   }
 }
 
-export async function fetchUser(userId: string) {
+export async function fetchUserPosts(userId: string) {
   try {
     connectToDB();
 
-    return await User.findOne({ id: userId });
-    // .populate({
-    //   path: "communities",
-    //   model: Community,
-    // });
-  } catch (error: any) {
-    throw new Error(`Failed to fetch user: ${error.message}`);
-  }
-}
-
-export async function fetchUserPosts(userId: string) {
-  connectToDB();
-
-  try {
+    // Find all threads authored by the user with the given userId
     const threads = await User.findOne({ id: userId }).populate({
       path: "threads",
       model: Thread,
       populate: [
+        {
+          path: "community",
+          model: Community,
+          select: "name id image _id", // Select the "name" and "_id" fields from the "Community" model
+        },
         {
           path: "children",
           model: Thread,
           populate: {
             path: "author",
             model: User,
-            select: "name image id",
+            select: "name image id", // Select the "name" and "_id" fields from the "User" model
           },
         },
       ],
     });
-
     return threads;
-  } catch (error: any) {
-    throw new Error(`Error Fetching User Thread ${error.message}`);
+  } catch (error) {
+    console.error("Error fetching user threads:", error);
+    throw error;
   }
 }
 
+// Almost similar to Thead (search + pagination) and Community (search + pagination)
 export async function fetchUsers({
   userId,
   searchString = "",
@@ -144,8 +147,8 @@ export async function fetchUsers({
     const isNext = totalUsersCount > skipAmount + users.length;
 
     return { users, isNext };
-  } catch (error: any) {
-    console.error("Error fetching users:", error.message);
+  } catch (error) {
+    console.error("Error fetching users:", error);
     throw error;
   }
 }
@@ -153,18 +156,19 @@ export async function fetchUsers({
 export async function getActivity(userId: string) {
   try {
     connectToDB();
-    // ? Temukan semua thread yang dibuat oleh pengguna
+
+    // Find all threads created by the user
     const userThreads = await Thread.find({ author: userId });
 
-    // ? Kumpulkan semua id thread anak (balasan) dari kolom 'anak' di setiap thread pengguna
+    // Collect all the child thread ids (replies) from the 'children' field of each user thread
     const childThreadIds = userThreads.reduce((acc, userThread) => {
       return acc.concat(userThread.children);
     }, []);
 
-    // ? Temukan dan kembalikan thread anak (balasan) tidak termasuk yang dibuat oleh pengguna yang sama
+    // Find and return the child threads (replies) excluding the ones created by the same user
     const replies = await Thread.find({
       _id: { $in: childThreadIds },
-      author: { $ne: userId }, // ? Kecualikan thread yang dibuat oleh pengguna yang sama
+      author: { $ne: userId }, // Exclude threads authored by the same user
     }).populate({
       path: "author",
       model: User,
@@ -172,7 +176,8 @@ export async function getActivity(userId: string) {
     });
 
     return replies;
-  } catch (error: any) {
-    throw new Error("failed to fetch Actity", error.message);
+  } catch (error) {
+    console.error("Error fetching replies: ", error);
+    throw error;
   }
 }
