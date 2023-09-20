@@ -19,7 +19,7 @@ import { CommentValidation } from "@/lib/validations/thread";
 // import { createThread } from "@/lib/actions/thread.actions";
 import { useState } from "react";
 import Image from "next/image";
-import { addComment } from "@/lib/actions/thread.actions";
+import { addCommentToThread } from "@/lib/actions/thread.actions";
 import { userInfo } from "os";
 
 interface Props {
@@ -47,7 +47,7 @@ const Comment = ({ threadId, currentUserImage, currentUserId }: Props) => {
   const onSubmit = async (values: z.infer<typeof CommentValidation>) => {
     setBtnIsLoading(true);
     try {
-      await addComment(
+      await addCommentToThread(
         threadId,
         values.thread,
         JSON.parse(currentUserId),
